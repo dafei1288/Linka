@@ -1,5 +1,5 @@
 import streamlit as st
-from duckduckgo_search import DDGS
+from web_search.duckduckgo_search import search_duckduckgo  # 修改为自定义模块导入
 from html2md import convert_url_to_markdown
 import os
 import openai
@@ -17,29 +17,6 @@ analyze_images_enabled = st.sidebar.checkbox("开启图片分析", value=False)
 if st.sidebar.button("清空对话记录", use_container_width=True):
     st.session_state["history"] = []
     st.session_state["search_results"] = []
-
-
-def search_duckduckgo(query, max_results=3, proxies=None, user_agent=None):
-    ddgs = DDGS()
-    # 通过requests自定义user-agent和代理
-    headers = {
-        "User-Agent": user_agent
-        or "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
-    }
-    results = []
-    for r in ddgs.text(query, max_results=max_results):
-        # 这里可以用requests.head测试代理和user-agent
-        try:
-            requests.head(
-                r.get("href") or r.get("url"),
-                headers=headers,
-                proxies=proxies,
-                timeout=3,
-            )
-        except Exception:
-            pass
-        results.append(r)
-    return results
 
 
 def fetch_and_convert(url, add_frontmatter=True, analyze_images=False):
@@ -215,5 +192,4 @@ if st.session_state.get("search_results"):
         for idx, (title, url, snippet) in enumerate(st.session_state["search_results"]):
             st.markdown(f"**[{idx+1}] [{title}]({url})**")
             st.markdown(f"**链接：** [{url}]({url})")
-            # if snippet:
-            #     st.markdown(f"**摘要：** {snippet}")
+
