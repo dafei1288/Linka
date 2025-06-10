@@ -1,0 +1,31 @@
+# requirements.txt
+
+# HTML content sanitization
+bleach
+
+# HTTP requests
+requests
+
+# Web content extraction
+trafilatura
+
+# Date/time utilities
+python-dateutil
+
+# HTML -> Markdown conversion
+markdownify
+
+# OpenAI for image analysis
+openai
+
+# For loading .env files
+python-dotenv
+
+# For async file operations (used by image_analysis)
+aiofiles
+
+# Streamlit for web app interface
+streamlit
+
+# DuckDuckGo search library
+duckduckgo-search
