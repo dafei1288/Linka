@@ -295,7 +295,7 @@ def convert_url_to_markdown(
     vision_model: str = None, 
     max_concurrent: int = 10,
     analyze_images: bool = True,  
-    add_frontmatter: bool = True,  # 新增参数，控制是否添加YAML frontmatter
+    add_frontmatter: bool = True,  
 ) -> Optional[str]:
     """
     获取网页主要内容，转换为带YAML Frontmatter的Markdown字符串。
@@ -471,14 +471,7 @@ def convert_url_to_markdown(
         return None
 
 
-def chomp(text):
-    """
-    去除文本前后空格，并返回前缀空格、后缀空格和中间内容。
-    """
-    prefix = " " if text and text[0] == " " else ""
-    suffix = " " if text and text[-1] == " " else ""
-    text = text.strip()
-    return (prefix, suffix, text)
+
 
 
 # --- 主程序执行区域 ---

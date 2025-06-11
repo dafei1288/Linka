@@ -14,6 +14,7 @@ import re
 import aiofiles # 导入 aiofiles
 import tempfile
 import requests
+from .prompts import MULTIMODAL_PROMPT # 导入提示词模板
 
 load_dotenv()
 
@@ -70,25 +71,6 @@ def extract_title_and_description(text: str) -> Dict[str, Any]:
         description = "未提取到描述"
 
     return {"title": title, "description": description}
-
-# 提示词模板
-MULTIMODAL_PROMPT = """
-请分析这张图片并生成一个10字以内的标题、50字以内的图片描述，输出格式如下：
-
-【图片分析开始】
-标题：xxx
-描述：yyy
-【图片分析结束】
-
-分析以下方面:
-1. 图像类型（图表、示意图、照片等）
-2. 主要内容/主题
-3. 包含的关键信息点
-4. 图像的可能用途
-
-只输出上述包裹格式内容，不要有其他说明文字，请你按照规定格式输出。
-"""
-
 
 class AsyncImageAnalysis:
     """
@@ -183,6 +165,18 @@ class AsyncImageAnalysis:
         # 设置并发限制
         self.semaphore = asyncio.Semaphore(max_concurrent)
 
+    async def __aenter__(self):
+        """进入异步上下文."""
+        # 客户端已在 __init__ 中初始化。
+        # 如果客户端本身是异步上下文管理器，可以在此处调用其 __aenter__，
+        # 但对于 AsyncOpenAI，通常通过在退出时调用 close() 来管理。
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        """退出异步上下文并关闭客户端."""
+        if hasattr(self, 'client') and self.client:
+            await self.client.close()
+
     async def analyze_image(
         self,
         image_url: str = None,
@@ -261,3 +255,66 @@ class AsyncImageAnalysis:
                 print(f"   使用模型: {model_to_use}")
                 return {"error": f"API调用失败: {str(e)}", "title": "", "description": ""}
             # 已无临时文件，无需finally清理
+
+    async def analyze_multiple_images(
+        self,
+        image_sources: List[Dict[str, str]], 
+        model: str = None,
+        detail: str = "low",
+        prompt: str = None,
+        temperature: float = 0.1,
+    ) -> List[Dict[str, Any]]:
+        """
+        异步分析多个图像并返回其描述。
+
+        参数:
+            image_sources (List[Dict[str, str]]): 字典列表，
+                每个字典指定一个 image_url 或 local_image_path。
+                示例: [{\"image_url\": \"http://...\"}, {\"local_image_path\": \"/path/...\"}]
+            model (str, optional): 用于这些分析的特定模型。
+            detail (str, optional): 图像分析的详细程度。
+            prompt (str, optional): 用于这些分析的特定提示。
+            temperature (float, optional): 模型的温度参数。
+
+        返回:
+            List[Dict[str, Any]]: 分析结果或错误字典的列表。
+        """
+        tasks = []
+        for image_source in image_sources:
+            task = self.analyze_image(
+                image_url=image_source.get("image_url"),
+                local_image_path=image_source.get("local_image_path"),
+                model=model,
+                detail=detail,
+                prompt=prompt,
+                temperature=temperature,
+            )
+            tasks.append(task)
+        
+        # Gather results, allowing individual tasks to fail without stopping others
+        results_or_exceptions = await asyncio.gather(*tasks, return_exceptions=True)
+        
+        processed_results = []
+        for i, res_or_exc in enumerate(results_or_exceptions):
+            if isinstance(res_or_exc, Exception):
+                source_info = image_sources[i].get("image_url") or image_sources[i].get("local_image_path", "Unknown source")
+                logging.error(f"Error analyzing image {source_info}: {res_or_exc}")
+                processed_results.append({
+                    "error": str(res_or_exc), 
+                    "title": "Error", 
+                    "description": f"Failed to analyze image: {source_info}"
+                })
+            elif isinstance(res_or_exc, dict):
+                processed_results.append(res_or_exc)
+            else: # Should not happen if analyze_image returns dict or raises Exception
+                source_info = image_sources[i].get("image_url") or image_sources[i].get("local_image_path", "Unknown source")
+                logging.warning(f"Unexpected result type for image {source_info}: {type(res_or_exc)}")
+                processed_results.append({
+                    "error": "Unexpected result type",
+                    "title": "Error",
+                    "description": f"Unexpected result from analyzing image: {source_info}"
+                })
+                
+        return processed_results
+
+# 主程序执行区域
